@@ -1,0 +1,98 @@
+#include <Wire.h>//调用收发数据所使用的库函数
+#include "I2Cdev.h"
+#include <U8glib.h> 
+#include <SHT2x.h>
+#include <Adafruit_NeoPixel.h> //引用此文件
+#define PIN 6   //led灯控制引脚
+#define PIN_NUM 2 //允许接的led灯的个数
+#define val_max 255
+#define val_min 0   
+#include <SoftwareSerial.h>
+
+SoftwareSerial mySerial(2, 3); /* RX:D3, TX:D2 */
+
+unsigned long net_time1 = millis();                          //数据上传服务器时间
+
+unsigned long sensor_time = millis();                        //传感器采样时间计时器
+
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(PIN_NUM, PIN, NEO_GRB + NEO_KHZ800);  //该函数第一个参数控制串联灯的个数，第二个是控制用哪个pin脚输出，第三个显示颜色和变化闪烁频率
+float sensor_tem;//float定义基本数据单精度常量
+char  sensor_tem_c[7];
+void colorSet(uint32_t);
+void TemRead();
+#define INTERVAL_LCD 20 //定义OLED刷新时间间隔 
+unsigned long lcd_time = millis(); //OLED刷新时间计时器
+U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE); //设置OLED型号 
+//-------字体设置，大、中、小
+#define setFont_L u8g.setFont(u8g_font_7x13)
+#define setFont_M u8g.setFont(u8g_font_fixed_v0r)
+#define setFont_S u8g.setFont(u8g_font_fixed_v0r)
+#define setFont_SS u8g.setFont(u8g_font_fub25n)
+String msg="";
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);//初始化串口通信，并设置波特率9600
+  Wire.begin(); 
+  strip.begin(); //准备对灯珠进行数据发送
+  strip.show(); //初始化LED为关的状态
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+ TemRead();
+  rainbowCycle( 255, 0, 0, 10); //红色呼吸
+  rainbowCycle( 0, 255, 0, 10); //绿色呼吸
+  rainbowCycle( 0, 0, 255, 10); //蓝色呼吸
+}
+void colorSet(uint32_t c) 
+{
+  for (uint16_t i = 0; i < strip.numPixels(); i++) 
+  //从0自增到LED灯个数减1
+{
+strip.setPixelColor(i, c); //此函数表示将第i个LED点亮
+}
+  strip.show(); //LED灯显示
+}
+
+void rainbowCycle( int r, int g, int b, uint8_t wait) {
+  for (int val = 0; val < 255; val++) 
+  //val由0自增到254不断循环
+  {
+colorSet(strip.Color(map(val, val_min, val_max, 0, r), map(val, val_min, val_max, 0, g), map(val, val_min, val_max, 0, b)));
+//红绿蓝LED灯依次从暗到亮
+/*“map(val,x,y,m,n)”函数为映射函数，可将某个区间的值（x-y）变幻成（m-n），val则是你需要用来映射的数据*/
+    delay(wait); //延时
+  }
+  for (int val = 255; val >= 0; val--)  //val从255自减到0不断循环
+  {
+colorSet(strip.Color(map(val, val_min, val_max, 0, r), map(val, val_min, val_max, 0, g), map(val, val_min, val_max, 0, b)));
+//红绿蓝LED灯依次由亮到暗
+    delay(wait); //延时
+  }
+}
+void TemRead()
+{
+  sensor_tem = SHT2x.readT();//把获得的温度值赋给变量sensor_tem
+  Serial.println(sensor_tem);//将数据从Arduino传递到PC且单独占据一行，此数据可在串口监视器中看到
+  Serial.print("--");   
+  Serial.println(SHT2x.readRH());
+  delay(100);
+ u8g.firstPage();
+ do {
+ setFont_L;
+ u8g.setPrintPos(0, 10);
+ u8g.print("TEMP:");
+ u8g.setPrintPos(55,10);
+ u8g.print(sensor_tem);
+ u8g.setPrintPos(0,30);
+ u8g.print("HUM:");
+ u8g.setPrintPos(55,30);
+ u8g.print(SHT2x.readRH());
+ }while( u8g.nextPage() );
+ if(Serial.available()>0)
+ {
+  msg=Serial.readStringUntil('n');
+  Serial.println(sensor_tem);
+  }
+}
